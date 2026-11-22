@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Aurora Vault Heist</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: #05080f; height: 100%; }
+  body {
+    font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    color: #e8e4d8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+  }
+  #stage {
+    position: relative;
+    width: min(1280px, 100vw);
+    aspect-ratio: 16 / 9;
+    box-shadow: 0 0 60px rgba(0, 0, 0, 0.9), 0 0 0 1px #2a3550;
+    background: #0a0f1c;
+  }
+  canvas { display: block; width: 100%; height: 100%; }
+  .hud {
+    position: absolute;
+    left: 0; right: 0; top: 0;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    padding: 10px 14px;
+    pointer-events: none;
+    font-size: 14px;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+  }
+  .hud .box {
+    background: rgba(5, 9, 18, 0.72);
+    border: 1px solid rgba(214, 178, 94, 0.35);
+    border-radius: 6px;
+    padding: 6px 10px;
+    line-height: 1.35;
+  }
+  .hud .label { color: #c9b98a; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; }
+  #alarmWrap { width: 300px; text-align: center; }
+  #alarmBar {
+    height: 12px; margin-top: 4px;
+    background: #1c2536; border: 1px solid #55648a; border-radius: 6px;
+    overflow: hidden;
+  }
+  #alarmFill {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, #d6b25e, #e07b39);
+    transition: width 0.12s linear;
+  }
+  #alarmFill.hot { background: linear-gradient(90deg, #e0533a, #ff2d1e); }
+  #lootBox .big { font-size: 16px; color: #ffd97a; }
+  #toolRow { display: flex; gap: 6px; margin-top: 4px; }
+  .toolBtn {
+    pointer-events: auto;
+    cursor: pointer;
+    background: #141d31; color: #e8e4d8;
+    border: 1px solid #55648a; border-radius: 5px;
+    padding: 4px 8px; font-size: 12px; font-family: inherit;
+  }
+  .toolBtn:hover { border-color: #d6b25e; }
+  .toolBtn.sel { border-color: #ffd97a; background: #2a2410; color: #ffd97a; }
+  .toolBtn:disabled { opacity: 0.35; cursor: default; }
+  #objectiveBar {
+    position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%);
+    background: rgba(5, 9, 18, 0.72);
+    border: 1px solid rgba(214, 178, 94, 0.35);
+    border-radius: 6px; padding: 5px 14px;
+    font-size: 13px; color: #e8e4d8; white-space: nowrap;
+    pointer-events: none; text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+  }
+  #toast {
+    position: absolute; left: 50%; top: 64px; transform: translateX(-50%);
+    background: rgba(5, 9, 18, 0.85);
+    border: 1px solid rgba(214, 178, 94, 0.6);
+    border-radius: 6px; padding: 6px 14px; font-size: 14px;
+    color: #ffd97a; opacity: 0; transition: opacity 0.25s;
+    pointer-events: none; white-space: nowrap;
+  }
+  #muteBtn {
+    position: absolute; right: 12px; bottom: 10px;
+    pointer-events: auto; cursor: pointer;
+    background: rgba(5, 9, 18, 0.72); color: #e8e4d8;
+    border: 1px solid #55648a; border-radius: 5px;
+    padding: 4px 9px; font-size: 12px; font-family: inherit;
+  }
+  #muteBtn:hover { border-color: #d6b25e; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="game" width="1280" height="720"></canvas>
+  <div class="hud">
+    <div class="box" id="lootBox">
+      <div class="label">Loot</div>
+      <div class="big">&#9670; <span id="lootCount">0 / 7</span></div>
+      <div id="scoreLine">Score 0</div>
+    </div>
+    <div class="box" id="alarmWrap">
+      <div class="label">Alarm <span id="alarmPct">0%</span></div>
+      <div id="alarmBar"><div id="alarmFill"></div></div>
+      <div id="stateLine">Undetected</div>
+    </div>
+    <div class="box" id="toolsBox">
+      <div class="label">Tools &nbsp;·&nbsp; <span id="timer">0:00</span></div>
+      <div id="toolRow">
+        <button class="toolBtn" id="btnSmoke" title="Smoke Bomb — press 1 then Q (2 left, −50 score)">&#9728; Smoke <span id="smokeCount">2</span></button>
+        <button class="toolBtn" id="btnEmp" title="EMP — press 2 then Q (1 left, −75 score)">&#9889; EMP <span id="empCount">1</span></button>
+        <button class="toolBtn" id="btnPick" title="Lockpick — vault door, silent &amp; fast (1 left)">&#9873; Pick <span id="pickCount">1</span></button>
+      </div>
+    </div>
+  </div>
+  <div id="objectiveBar">Steal the Aurora Diamond — then reach the van</div>
+  <div id="toast"></div>
+  <button id="muteBtn">Sound: on (M)</button>
+</div>
+<script src="src/config.js"></script>
+<script src="src/level.js"></script>
+<script src="src/audio.js"></script>
+<script src="src/input.js"></script>
+<script src="src/player.js"></script>
+<script src="src/guards.js"></script>
+<script src="src/cameras.js"></script>
+<script src="src/loot.js"></script>
+<script src="src/alarm.js"></script>
+<script src="src/render.js"></script>
+<script src="src/shots.js"></script>
+<script src="src/main.js"></script>
+</body>
+</html>
